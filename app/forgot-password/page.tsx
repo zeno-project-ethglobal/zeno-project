@@ -4,6 +4,7 @@ import { getUserInfo } from "@/utils/getUserInfo";
 import Link from "next/link";
 import React, { useState, useCallback } from "react";
 import SelfQRVerification from "@/components/SelfQRVerification";
+import { passwordToKeyPair, recoverPassword } from "@/utils/passwordRecovery";
 
 interface PasswordValidation {
   minLength: boolean;
@@ -45,11 +46,13 @@ type AppState =
   | "form"
   | "verification"
   | "passwordReset"
-  | "verificationFailed";
+  | "verificationFailed"
+  | "passwordChanged";
 
 function ForgotPassword(): React.JSX.Element {
   const [username, setUsername] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isChangingPassword, setIsChangingPassword] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [appState, setAppState] = useState<AppState>("form");
   const [userNullifier, setUserNullifier] = useState<string>("");
@@ -97,7 +100,6 @@ function ForgotPassword(): React.JSX.Element {
 
   const handleContinueClick = useCallback(async (): Promise<void> => {
     if (isFormValid() && !isLoading) {
-      console.log("Continue with password recovery for:", username);
       setIsLoading(true);
       setError(null);
 
@@ -158,18 +160,39 @@ function ForgotPassword(): React.JSX.Element {
     setAppState("verificationFailed");
   }, []);
 
-  const handleChangePassword = useCallback((): void => {
-    if (Object.values(passwordValidation).every(Boolean)) {
-      // TODO: Implement password change logic
-      console.log(
-        "Change password for:",
-        username,
-        "New password:",
-        newPassword
-      );
-      window.location.href = "/";
+  const handleChangePassword = useCallback(async (): Promise<void> => {
+    if (
+      Object.values(passwordValidation).every(Boolean) &&
+      !isChangingPassword
+    ) {
+      setIsChangingPassword(true);
+
+      try {
+        const keyPair = passwordToKeyPair(newPassword);
+
+        const response = await recoverPassword({
+          rpcUrl: process.env.NEXT_PUBLIC_RPC_URL!,
+          issuerPrivateKey: process.env.NEXT_PUBLIC_ISSUER_KEY!,
+          id: username,
+          newEOA: keyPair.address,
+        });
+
+        console.log(response, "response");
+
+        // Store private key in localStorage after successful password recovery
+        if (response && !response.error) {
+          localStorage.setItem("userPrivateKey", keyPair.privateKey);
+          setAppState("passwordChanged");
+        } else {
+          console.error("Password recovery failed:", response.error);
+        }
+      } catch (error) {
+        console.error("Error during password recovery:", error);
+      } finally {
+        setIsChangingPassword(false);
+      }
     }
-  }, [passwordValidation, username, newPassword]);
+  }, [passwordValidation, username, newPassword, isChangingPassword]);
 
   const handleTryAgain = useCallback((): void => {
     setAppState("form");
@@ -183,6 +206,10 @@ function ForgotPassword(): React.JSX.Element {
       hasUppercase: false,
     });
     setError(null);
+  }, []);
+
+  const handleBackToLogin = useCallback((): void => {
+    window.location.href = "/";
   }, []);
 
   // Self QR Verification State
@@ -316,15 +343,36 @@ function ForgotPassword(): React.JSX.Element {
               <div className="pt-6">
                 <button
                   onClick={handleChangePassword}
-                  disabled={!Object.values(passwordValidation).every(Boolean)}
+                  disabled={
+                    !Object.values(passwordValidation).every(Boolean) ||
+                    isChangingPassword
+                  }
                   className={`w-full py-4 px-6 font-bold text-sm tracking-[0.15em] uppercase transition-all duration-300 ${
-                    Object.values(passwordValidation).every(Boolean)
+                    Object.values(passwordValidation).every(Boolean) &&
+                    !isChangingPassword
                       ? "bg-black text-white hover:bg-gray-800 cursor-pointer"
                       : "bg-gray-300 text-gray-500 cursor-not-allowed"
                   }`}
                   type="button"
                 >
-                  Change Password
+                  {isChangingPassword ? (
+                    <div className="flex items-center justify-center space-x-2">
+                      <span>Updating Password</span>
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-white animate-bounce"></div>
+                        <div
+                          className="w-2 h-2 bg-white animate-bounce"
+                          style={{ animationDelay: "0.1s" }}
+                        ></div>
+                        <div
+                          className="w-2 h-2 bg-white animate-bounce"
+                          style={{ animationDelay: "0.2s" }}
+                        ></div>
+                      </div>
+                    </div>
+                  ) : (
+                    "Update Password"
+                  )}
                 </button>
               </div>
 
@@ -335,6 +383,58 @@ function ForgotPassword(): React.JSX.Element {
                 >
                   Create New Account
                 </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Password Changed Successfully State
+  if (appState === "passwordChanged") {
+    return (
+      <div className="min-h-screen w-full bg-white flex items-center justify-center p-6">
+        <div className="w-full max-w-4xl mx-auto">
+          <div className="bg-white border-2 border-black shadow-2xl">
+            {/* Header */}
+            <div className="text-center py-12 px-6 border-b-2 border-black">
+              <div className="w-20 h-20 mx-auto mb-6 bg-green-500 flex items-center justify-center">
+                <span className="text-white text-3xl font-bold">✓</span>
+              </div>
+              <h1 className="text-black text-3xl font-bold mb-4 tracking-[0.2em]">
+                PASSWORD UPDATED SUCCESSFULLY
+              </h1>
+              <p className="text-gray-600 text-sm tracking-widest uppercase">
+                Recovery Complete
+              </p>
+            </div>
+
+            {/* Success Content */}
+            <div className="p-12 text-center space-y-8">
+              <div className="space-y-4">
+                <h2 className="text-black text-xl font-bold tracking-[0.15em] uppercase">
+                  Your Password Has Been Updated
+                </h2>
+                <p className="text-gray-700 text-base leading-relaxed max-w-2xl mx-auto">
+                  Congratulations! Your password has been successfully updated.
+                  You can now use your new password to access your account
+                  securely.
+                </p>
+              </div>
+
+              <div className="space-y-6">
+                <p className="text-gray-600 text-sm tracking-wide">
+                  Your account is ready for secure access with your new
+                  credentials.
+                </p>
+                <button
+                  onClick={handleBackToLogin}
+                  className="px-8 py-4 bg-black text-white font-bold text-sm tracking-[0.15em] uppercase hover:bg-gray-800 transition-all duration-300"
+                  type="button"
+                >
+                  Back to Login
+                </button>
               </div>
             </div>
           </div>
