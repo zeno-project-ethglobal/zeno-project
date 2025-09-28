@@ -136,14 +136,14 @@ function VerificationPage(): React.JSX.Element {
     try {
       return new SelfAppBuilder({
         version: 2,
-        appName: "Zeno Project Self Demo",
+        appName: "Zeno Project",
         scope: scope,
         endpoint: endpoint,
         logoBase64: "https://i.postimg.cc/mrmVf9hm/self.png",
         userId: userId,
         endpointType: "staging_https" as const,
         userIdType: "uuid" as const,
-        userDefinedData: "Hello World",
+        userDefinedData: "ZenoProject",
         disclosures: {
           minimumAge: 18,
           excludedCountries: [],

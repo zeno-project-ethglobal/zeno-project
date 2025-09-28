@@ -93,7 +93,7 @@ function SelfQRVerification({
     try {
       return new SelfAppBuilder({
         version: 2,
-        appName: "Zeno Project Self Demo",
+        appName: "Zeno Project",
         scope: scope,
         endpoint: endpoint,
         logoBase64: "https://i.postimg.cc/mrmVf9hm/self.png",
