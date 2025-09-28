@@ -100,7 +100,7 @@ function SelfQRVerification({
         userId: userId,
         endpointType: "staging_https" as const,
         userIdType: "uuid" as const,
-        userDefinedData: "Hello World",
+        userDefinedData: "ZenoProject",
         disclosures: {
           minimumAge: 18,
           excludedCountries: [],
